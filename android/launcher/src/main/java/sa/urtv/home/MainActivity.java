@@ -1035,7 +1035,7 @@ public class MainActivity extends Activity {
         String credit() {
             String who = creator.isEmpty() ? "" : " — " + creator;
             String kind = license.isEmpty() ? "" : " · " + ("PDM".equals(license) ? "Public Domain" : "CC0".equals(license) ? "CC0" : "CC " + license);
-            return "Openverse · " + (title.isEmpty() ? "صورة" : title) + who + kind;
+            return "Openverse (غير تابع أو معتمد منهم) · " + (title.isEmpty() ? "صورة" : title) + who + kind;
         }
     }
 
