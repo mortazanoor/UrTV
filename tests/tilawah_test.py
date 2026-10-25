@@ -194,10 +194,9 @@ check("no «استماع» left in the strings",
 
 # ---- the adhan
 prayers = text(TILAWAH / "PrayerTimes.java") + text(TILAWAH / "PrayerMath.java")
-check("Umm al-Qura: Fajr at 18.5°", "18.5" in prayers)
-check("Umm al-Qura: Isha 90 minutes after Maghrib", "90" in prayers and "120" in prayers)
-check("Ramadan uses the Umm al-Qura calendar", "islamic-umalqura" in prayers)
-check("Aladhan is the online source, method 4", "api.aladhan.com" in prayers and "method=4" in prayers)
+check("Ja'fari AlAdhan method 0 is the online source", "api.aladhan.com" in prayers and "method=0" in prayers)
+check("AlAdhan Ja'fari Isha is used directly", "for (int i = 0; i <= ISHA; i++)" in prayers and "parsed[ISHA]" in prayers)
+check("Ja'fari calculation cache is isolated from old method values", "_jafari0" in text(TILAWAH / "PrayerMath.java"))
 
 adhan = text(TILAWAH / "Adhan.java")
 check("21 adhan voices", "VOICES = 21" in adhan)
@@ -301,7 +300,7 @@ check("Aladhan's times put the alarm back", "AdhanScheduler.schedule(c)" in pray
 check("the receiver asks Aladhan too, not only the screen", "PrayerTimes.refresh(context" in adhan_receiver_src)
 check("the key and the date are the city's", "PrayerMath.key(" in prayers and "PrayerMath.aladhanDate(" in prayers)
 check("an Aladhan time with a zone after it is read, not trusted by length", "PrayerMath.parseClock(" in prayers and "substring(0, 5)" not in prayers)
-check("Isha is an absolute moment", "at[MAGHRIB] + ishaDelayMillis" in text(TILAWAH / "PrayerMath.java"))
+check("Isha is calculated at the Ja'fari angle and kept as an absolute moment", "angleTime(jd0, lat, 14" in text(TILAWAH / "PrayerMath.java") and "at[ISHA] <= at[MAGHRIB]" in text(TILAWAH / "PrayerMath.java"))
 check("a running adhan keeps the first one's «resume after»", "if (!wasAdhan) resumeAfterAdhan = comeBack" in service_src)
 check("a preview gives way to the real adhan, a real one to no second", "adhanPreview" in service_src)
 adhan_src = text(TILAWAH / "Adhan.java")

@@ -1023,7 +1023,10 @@ public class MainActivity extends Activity {
     static final String OPENVERSE_API = "https://api.openverse.org/v1/images/";
     static final String[] PHOTO_QUERIES = {"nature landscape waterfall", "ocean coral reef", "wildlife animals",
             "city skyline architecture", "mosque Islamic architecture", "abstract art painting",
-            "science laboratory technology", "space galaxy nebula", "football soccer stadium", "basketball sport"};
+            "historical places ancient history monuments", "science laboratory technology", "space galaxy nebula",
+            "sports stadium competition", "football soccer stadium", "basketball sport"};
+    static final int PHOTOS_PER_CATEGORY = 10;
+    static final int PHOTO_CACHE_MAX = 120;
     private volatile boolean photoRefreshInFlight;
 
     static final class Photo {
@@ -1048,13 +1051,12 @@ public class MainActivity extends Activity {
         return out;
     }
 
-    /** Keep only the current set on disk. */
+    /** Keep a small recent LRU cache; the daily index can contain about 120 photos. */
     private void pruneCachedPhotos(List<Photo> keep) {
         java.io.File[] files = new java.io.File(getFilesDir(), "photos").listFiles();
-        if (files == null) return;
-        java.util.Set<String> k = new java.util.HashSet<>();
-        for (Photo p : keep) k.add(photoFile(p.url));
-        for (java.io.File f : files) if (!k.contains(f.getName())) f.delete();
+        if (files == null || files.length <= PHOTO_CACHE_MAX) return;
+        java.util.Arrays.sort(files, (a, b) -> Long.compare(b.lastModified(), a.lastModified()));
+        for (int i = PHOTO_CACHE_MAX; i < files.length; i++) files[i].delete();
     }
 
     private static String photoFile(String url) { return Integer.toHexString(url.hashCode()) + ".jpg"; }
@@ -1068,10 +1070,10 @@ public class MainActivity extends Activity {
         return at != null && System.currentTimeMillis() - at < RETRY_MS;
     }
 
-    /** Off the main thread: fetch one high-resolution CC0/by/by-sa photo per category once a day. */
+    /** Off the main thread: fetch up to ten high-resolution CC0/by/by-sa photos per category once a day. */
     private void refreshPhotoIndex() {
         Calendar today = Calendar.getInstance(java.util.TimeZone.getTimeZone("Asia/Baghdad"));
-        String todayKey = today.get(Calendar.YEAR) + "-" + today.get(Calendar.DAY_OF_YEAR);
+        String todayKey = today.get(Calendar.YEAR) + "-" + today.get(Calendar.DAY_OF_YEAR) + "-v2";
         if (todayKey.equals(prefs().getString("photoIndexDay", ""))
                 && System.currentTimeMillis() - prefs().getLong("photoIndexAt", 0) < INDEX_MAX_AGE_MS) return;
         if (failedRecently("index.json")) return;
@@ -1079,15 +1081,22 @@ public class MainActivity extends Activity {
         photoRefreshInFlight = true;
         try {
             java.util.concurrent.ExecutorService pool = java.util.concurrent.Executors.newFixedThreadPool(PHOTO_QUERIES.length);
-            List<java.util.concurrent.Future<org.json.JSONObject>> futures = new ArrayList<>();
+            List<java.util.concurrent.Future<List<org.json.JSONObject>>> futures = new ArrayList<>();
             for (String query : PHOTO_QUERIES) futures.add(pool.submit(() -> fetchCategory(query)));
             org.json.JSONArray photos = new org.json.JSONArray();
-            for (java.util.concurrent.Future<org.json.JSONObject> future : futures) {
-                try { org.json.JSONObject photo = future.get(20, java.util.concurrent.TimeUnit.SECONDS); if (photo != null) photos.put(photo); }
+            java.util.Set<String> seen = new java.util.HashSet<>();
+            for (java.util.concurrent.Future<List<org.json.JSONObject>> future : futures) {
+                try {
+                    List<org.json.JSONObject> category = future.get(25, java.util.concurrent.TimeUnit.SECONDS);
+                    if (category != null) for (org.json.JSONObject photo : category) {
+                        String url = photo.optString("url");
+                        if (!url.isEmpty() && seen.add(url)) photos.put(photo);
+                    }
+                }
                 catch (Exception ignored) { future.cancel(true); }
             }
             pool.shutdownNow();
-            if (photos.length() >= 5) prefs().edit()
+            if (photos.length() >= 25) prefs().edit()
                     .putString("photoIndex", photos.toString())
                     .putString("photoIndexDay", todayKey)
                     .putLong("photoIndexAt", System.currentTimeMillis()).apply();
@@ -1098,19 +1107,21 @@ public class MainActivity extends Activity {
         }
     }
 
-    private org.json.JSONObject fetchCategory(String query) {
+    private List<org.json.JSONObject> fetchCategory(String query) {
         try {
             String q = java.net.URLEncoder.encode(query, "UTF-8");
             String endpoint = OPENVERSE_API + "?q=" + q + "&source=wikimedia&size=large&aspect_ratio=wide&page_size=20&mature=false&filter_dead=true";
             org.json.JSONObject response = new org.json.JSONObject(new String(download(endpoint), "UTF-8"));
             org.json.JSONArray results = response.optJSONArray("results");
-            if (results == null) return null;
+            if (results == null) return new ArrayList<>();
             List<org.json.JSONObject> candidates = new ArrayList<>();
             for (int i = 0; i < results.length(); i++) {
                 org.json.JSONObject item = results.getJSONObject(i);
                 String license = item.optString("license"), original = item.optString("url");
                 if (!"wikimedia".equals(item.optString("source")) || !(license.equals("cc0") || license.equals("pdm") || license.equals("by") || license.equals("by-sa"))
-                        || item.optInt("width") < 1920 || item.optInt("height") < 1080 || !original.startsWith("https://upload.wikimedia.org/wikipedia/commons/")) continue;
+                        || item.optInt("width") < 1920 || item.optInt("height") < 1080
+                        || item.optInt("width") < item.optInt("height") * 1.5
+                        || !original.startsWith("https://upload.wikimedia.org/wikipedia/commons/")) continue;
                 String path = android.net.Uri.parse(original).getEncodedPath();
                 if (!path.toLowerCase(Locale.ROOT).matches(".*\\.jpe?g$")) continue;
                 String rel = path.substring("/wikipedia/commons/".length());
@@ -1118,17 +1129,19 @@ public class MainActivity extends Activity {
                 int slash = rel.lastIndexOf('/');
                 if (slash < 0) continue;
                 String dirs = rel.substring(0, slash), file = rel.substring(slash + 1);
-                int width = Math.min(1920, (item.optInt("width") / 16) * 16);
+                int target = Math.min(3840, Math.max(1920, getResources().getDisplayMetrics().widthPixels));
+                int width = Math.min(target, (item.optInt("width") / 16) * 16);
                 item.put("url", "https://upload.wikimedia.org/wikipedia/commons/thumb/" + dirs + "/" + file + "/" + width + "px-" + file);
                 if (item.has("foreign_landing_url") && item.has("license_url")) candidates.add(item);
             }
             if (!candidates.isEmpty()) {
                 Calendar day = Calendar.getInstance(java.util.TimeZone.getTimeZone("Asia/Baghdad"));
                 int seed = day.get(Calendar.YEAR) * 367 + day.get(Calendar.DAY_OF_YEAR) * 31 + query.hashCode();
-                return candidates.get(Math.floorMod(seed, candidates.size()));
+                java.util.Collections.rotate(candidates, -Math.floorMod(seed, candidates.size()));
+                return new ArrayList<>(candidates.subList(0, Math.min(PHOTOS_PER_CATEGORY, candidates.size())));
             }
         } catch (Exception ignored) { }
-        return null;
+        return new ArrayList<>();
     }
 
     private static byte[] download(String url) throws java.io.IOException {
@@ -1228,6 +1241,7 @@ public class MainActivity extends Activity {
                             if (!tmp.renameTo(f)) tmp.delete();
                         }
                     }
+                    if (f.isFile()) f.setLastModified(System.currentTimeMillis());
                     bm = decode(() -> new java.io.FileInputStream(f));
                 } catch (java.io.IOException ignored) { }
             }

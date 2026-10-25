@@ -22,7 +22,7 @@ final class PhotoCache {
         FONTS = REPO + "assets/fonts/";
     /** the owner's own photos (Own): not a real address, the page asks for N.jpg here and only this app answers */
     static final String OWN = "https://own.urtv.invalid/";
-    private static final int KEEP = 12;   // the 5-photo set plus room for the next one
+    private static final int KEEP = 120;   // one daily pool, enough for offline rotation after the TV has cached it
 
     private PhotoCache() {}
 

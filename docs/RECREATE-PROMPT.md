@@ -6,7 +6,7 @@ Paste everything below the line into any AI that can write a single HTML file. I
 
 ## Goal
 
-Build ONE self-contained HTML file (no build step, no external JS libraries) that runs full-screen on a 16:9 TV at 1920×1080 as an always-on screensaver. Arabic only, right-to-left, Riyadh. It must look like a premium Saudi editorial broadcast graphic — photographic and calm, never like a generic dark "dashboard".
+Build ONE self-contained HTML file (no build step, no external JS libraries) that runs full-screen on a 16:9 TV at 1920×1080 as an always-on screensaver. Arabic only, right-to-left. Default installation city is Diwaniyah, Iraq; user-selected city settings take precedence. It must look like a premium editorial broadcast graphic — photographic and calm, never like a generic dark "dashboard".
 
 ## Layout (1920×1080)
 
@@ -61,7 +61,7 @@ All three are built identically — small gold label, big value, small sub-line 
   The centre panel follows the next occasion the same way (OCCASIONS in the page: Ramadan, عيد الفطر, عشر ذي الحجة,
   يوم عرفة, عيد الأضحى, رأس السنة الهجرية, عاشوراء): days left and the expected date («متوقّع»), «اليوم …» or
   «عيد مبارك» on its days.
-- **Hijri date** — `Intl.DateTimeFormat('ar-SA-u-ca-islamic-umalqura',{timeZone:'Asia/Riyadh',weekday:'long',day:'numeric',month:'long',year:'numeric'})`, strip a trailing `هـ` before appending your own. The Ramadan panel's year must also be derived, never a literal `١٤٤٨`.
+- **Hijri date** — use the Sistani office's 1448 AH Najaf crescent-calendar prediction table when its date range applies, while displaying that it is an astronomical estimate subject to confirmed crescent sighting. Outside the supplied 1448 table the current build falls back to Umm al-Qura; do not describe that fallback as Sistani's ruling. The Ramadan panel's year must be derived, never a literal `١٤٤٨`.
 - **Markets** — Yahoo chart API:
   `https://query1.finance.yahoo.com/v8/finance/chart/{^TASI.SR|^GSPC}?interval=1d&range=5d`
   Compare `regularMarketPrice` with the previous close; only the sign matters. Refresh every 15 minutes.
@@ -70,7 +70,7 @@ All three are built identically — small gold label, big value, small sub-line 
   `https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd&include_24hr_change=true`
   Mind the spelling: the query parameter is `include_24hr_change` but the response key is `usd_24h_change` (no `r`) — accept both.
 - **Weather** — Open-Meteo:
-  `https://api.open-meteo.com/v1/forecast?latitude=24.7136&longitude=46.6753&current=temperature_2m,weather_code&timezone=Asia/Riyadh`
+  `https://api.open-meteo.com/v1/forecast?latitude=31.9929&longitude=44.9255&current=temperature_2m,weather_code&timezone=Asia/Baghdad`
   Map the WMO `weather_code` to a short Arabic phrase. Refresh every 30 minutes.
 - **Premieres** — TVMaze schedules:
   `https://api.tvmaze.com/schedule?country=US&date=YYYY-MM-DD` and `https://api.tvmaze.com/schedule/web?date=YYYY-MM-DD`, for each of the next 7 days.
@@ -86,7 +86,7 @@ All three are built identically — small gold label, big value, small sub-line 
 - **Ramadan mode:** when the Hijri month is 9 the centre panel stops counting down and becomes `الإفطار` with the Maghrib time and the time left; between Maghrib and Fajr it becomes `الإمساك` with the Fajr time.
 - **Night dimming:** a full-screen black overlay, transparent from 07:00 to 21:00, ramping over two hours either side, sitting at 46% between 23:00 and 05:00. Recompute every minute.
 - **Burn-in protection:** shift the content layer a few pixels through a fixed 7-step sequence every 4 minutes, with a 3-second transition.
-- **Background:** one high-resolution Wikimedia Commons photo per Openverse category (nature, ocean, wildlife, cities, Islamic architecture, art, science, space, football, basketball), refreshed daily and rotated every 15 minutes on the screensaver and launcher home. Keep bundled photos as the offline fallback. Show creator, source and licence attributions for online photos; identify Openverse as the discovery source and state that the app is not endorsed by it.
+- **Background:** high-resolution Wikimedia Commons photos from Openverse categories (nature, ocean, wildlife, cities, Islamic architecture, art, history, science, space, animals, sports, football, basketball), refreshed daily and rotated every 15 minutes on the screensaver and launcher home. Keep bundled photos as the offline fallback. Show creator, source and licence attributions for online photos; identify Openverse as the discovery source and state that the app is not endorsed by it.
 - **Start:** keep the page hidden until the clock, the last saved panels and the photo are ready, then fade in once — never a half-built frame.
 - **Arabic descenders:** any line clipped with `overflow:hidden` + ellipsis needs room under the baseline (`padding-bottom:.3em; margin-bottom:-.3em`), or the dots under ي and ج are cut off.
 - **Midnight rollover:** at Riyadh 00:00 reload the day-dependent data (prayers, week list, matches, weather). A 6-hour interval alone leaves yesterday's premieres on screen.

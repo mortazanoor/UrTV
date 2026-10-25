@@ -16,10 +16,8 @@ import java.util.Locale;
 import java.util.TimeZone;
 
 /**
- * Prayer times for the TV: Umm al-Qura, the same numbers the screensaver's page computes and the
- * ones Aladhan calls method 4. Everything is computed on the TV with no network; once a day the
- * times are quietly replaced by Aladhan's, and Isha stays 90 minutes after Maghrib (120 in Ramadan)
- * like the Umm al-Qura calendar.
+ * Ja'fari prayer times for the TV (AlAdhan method 0 / Leva Institute). Everything has an offline
+ * calculation; once per local day AlAdhan's method-0 values replace it when online.
  */
 final class PrayerTimes {
     static final int FAJR = 0, SUNRISE = 1, DHUHR = 2, ASR = 3, MAGHRIB = 4, ISHA = 5;
@@ -33,7 +31,6 @@ final class PrayerTimes {
     /** the city's zone these times belong to, local midnight of their day, and whether it is Ramadan */
     private String tz = "Asia/Riyadh";
     private long day0;
-    private boolean ramadan;
     /** «تعديل وقت الصلاة»: minutes added to PRAYERS[k] (PrayerAdjust); the sunrise is never moved */
     private int[] adj = new int[PrayerAdjust.COUNT];
 
@@ -53,15 +50,14 @@ final class PrayerTimes {
         local.setTimeInMillis(when.getTimeInMillis());
         long day0 = PrayerMath.midnight(local.get(Calendar.YEAR), local.get(Calendar.MONTH) + 1,
                 local.get(Calendar.DAY_OF_MONTH), place.tz);
-        return of(local, place, hijriMonth(day0) == 9);
+        return of(local, place);
     }
 
-    private static PrayerTimes of(Calendar local, Place place, boolean ramadan) {
+    private static PrayerTimes of(Calendar local, Place place) {
         long[] times = PrayerMath.compute(local.get(Calendar.YEAR), local.get(Calendar.MONTH) + 1,
-                local.get(Calendar.DAY_OF_MONTH), place.lat, place.lng, place.tz, ramadan);
+                local.get(Calendar.DAY_OF_MONTH), place.lat, place.lng, place.tz);
         PrayerTimes t = new PrayerTimes();
         t.tz = place.tz;
-        t.ramadan = ramadan;
         t.day0 = PrayerMath.midnight(local.get(Calendar.YEAR), local.get(Calendar.MONTH) + 1, local.get(Calendar.DAY_OF_MONTH), place.tz);
         for (int i = 0; i < 6; i++) t.set(i, times[i]);
         t.adj = place.adj;
@@ -156,7 +152,7 @@ final class PrayerTimes {
     // ---------------------------------------------------------------- Aladhan
 
     /**
-     * Replaces today's computed times with Aladhan's (method 4) once they arrive, and puts the alarm back for the
+     * Replaces today's computed times with Aladhan's Ja'fari (method 0) once they arrive, and puts the alarm back for the
      * new times. Runs off the main thread; `done` runs on the main thread when something changed.
      */
     static void refresh(final Context c, final Runnable done) {
@@ -174,7 +170,7 @@ final class PrayerTimes {
         try {
             String url = "https://api.aladhan.com/v1/timings/" + PrayerMath.aladhanDate(day.getTimeInMillis(), place.tz)
                     + "?latitude=" + place.lat + "&longitude=" + place.lng
-                    + "&method=4&timezonestring=" + URLEncoder.encode(place.tz, "UTF-8");
+                    + "&method=0&timezonestring=" + URLEncoder.encode(place.tz, "UTF-8");
             HttpURLConnection con = (HttpURLConnection) new URL(url).openConnection();
             con.setConnectTimeout(6000);
             con.setReadTimeout(8000);
@@ -189,7 +185,7 @@ final class PrayerTimes {
             }
             JSONObject timings = new JSONObject(body.toString()).getJSONObject("data").getJSONObject("timings");
             StringBuilder out = new StringBuilder();
-            for (int i = 0; i <= MAGHRIB; i++) {   // Isha stays ours: 90/120 minutes after Maghrib
+            for (int i = 0; i <= ISHA; i++) {
                 int[] hm = PrayerMath.parseClock(timings.optString(KEYS[i]));   // «5:12 (+03)» is 5:12
                 if (hm == null) throw new IllegalStateException("no " + KEYS[i]);
                 if (out.length() > 0) out.append(',');
@@ -209,38 +205,24 @@ final class PrayerTimes {
         }
     }
 
-    /** Aladhan's five times, "HH:mm,..." as saved; Isha is Maghrib's moment plus its delay, never wrapped into the day. */
+    /** AlAdhan's Ja'fari times, "HH:mm,..." as saved. */
     private void apply(String saved) {
         String[] values = saved.split(",");
-        if (values.length < MAGHRIB + 1) return;
-        long[] parsed = new long[MAGHRIB + 1];
-        for (int i = 0; i <= MAGHRIB; i++) {
+        if (values.length < ISHA + 1) return;
+        long[] parsed = new long[ISHA + 1];
+        for (int i = 0; i <= ISHA; i++) {
             int[] hm = PrayerMath.parseClock(values[i]);
             if (hm == null) return;   // not a time: keep the computed ones
             parsed[i] = day0 + (hm[0] * 60 + hm[1]) * 60_000L;
         }
-        for (int i = 0; i <= MAGHRIB; i++) set(i, parsed[i]);
-        set(ISHA, parsed[MAGHRIB] + PrayerMath.ishaDelayMillis(ramadan));
+        if (parsed[ISHA] <= parsed[MAGHRIB]) parsed[ISHA] += 24 * 60 * 60_000L;
+        for (int i = 0; i <= ISHA; i++) set(i, parsed[i]);
         shift();   // Aladhan's times are the raw ones: the person's minutes go on top of them
     }
 
     private void set(int i, long moment) {
         at[i] = moment;
         clock[i] = PrayerMath.clockOf(moment, tz);
-    }
-
-    // ---------------------------------------------------------------- the Islamic month
-
-    /** 9 in Ramadan, from the Umm al-Qura calendar the whole project uses. */
-    private static int hijriMonth(long millis) {
-        try {
-            android.icu.util.Calendar cal = android.icu.util.Calendar.getInstance(
-                    new android.icu.util.ULocale("en-u-ca-islamic-umalqura"));
-            cal.setTimeInMillis(millis);
-            return cal.get(android.icu.util.Calendar.MONTH) + 1;
-        } catch (Throwable t) {
-            return 0;
-        }
     }
 
     // ---------------------------------------------------------------- prefs

@@ -29,7 +29,7 @@ public final class PrayerAdjustRun {
         check("fragment: the setting off (no adj=) is zeros", Arrays.equals(PrayerAdjust.fromFragment("city=x&tz=Asia/Riyadh"), new int[5]), "");
 
         // Riyadh, Thursday 22 October 2026: the times, and the same moved
-        long[] raw = PrayerMath.compute(2026, 10, 22, 24.6877, 46.7219, "Asia/Riyadh", false);
+        long[] raw = PrayerMath.compute(2026, 10, 22, 24.6877, 46.7219, "Asia/Riyadh");
         long[] moved = raw.clone();
         PrayerAdjust.shift(moved, new int[]{0, 2, 0, 0, -1});
         check("shift: Dhuhr +2 and Isha −1 minute, exactly", moved[2] - raw[2] == 2 * 60_000L && moved[5] - raw[5] == -60_000L, Arrays.toString(moved));
@@ -42,13 +42,13 @@ public final class PrayerAdjustRun {
         check("shift: −20 / +20 at the edges",
                 edge[0] == raw[0] - 20 * 60_000L && edge[2] == raw[2] + 20 * 60_000L && edge[3] == raw[3] - 20 * 60_000L && edge[4] == raw[4] + 20 * 60_000L
                 && edge[5] == raw[5] - 20 * 60_000L, Arrays.toString(edge));
-        check("shift: even at the edges Isha (−20) stays after Maghrib (+20): 90 − 40 minutes", edge[5] > edge[4], "");
+        check("shift: even at the edges Isha (−20) stays after Maghrib (+20)", edge[5] > edge[4], "");
         long[] none = raw.clone();
         PrayerAdjust.shift(none, new int[5]);
         check("shift: zeros change nothing", Arrays.equals(none, raw), "");
 
         // Oslo midsummer: Isha is past midnight; moved by +20 it is still the same kind of instant, and its clock text wraps to 00:xx
-        long[] o = PrayerMath.compute(2026, 6, 21, 59.91, 10.75, "Europe/Oslo", false);
+        long[] o = PrayerMath.compute(2026, 6, 21, 59.91, 10.75, "Europe/Oslo");
         long day0 = PrayerMath.midnight(2026, 6, 21, "Europe/Oslo");
         long[] om = o.clone();
         PrayerAdjust.shift(om, new int[]{0, 0, 0, 0, 20});
@@ -59,7 +59,7 @@ public final class PrayerAdjustRun {
         check("midnight: Isha −20 may come back before midnight: the clock reads 23:xx and it is the same day's instant",
                 om2[5] - day0 < 24 * 3600_000L ? hm(om2[5], "Europe/Oslo").startsWith("23:") : hm(om2[5], "Europe/Oslo").startsWith("00:"), hm(om2[5], "Europe/Oslo"));
         // Riyadh Isha at 18:xx +20: nothing odd; Friday 23 October: Dhuhr +20 is a normal moment
-        long[] fri = PrayerMath.compute(2026, 10, 23, 24.6877, 46.7219, "Asia/Riyadh", false);
+        long[] fri = PrayerMath.compute(2026, 10, 23, 24.6877, 46.7219, "Asia/Riyadh");
         long[] fm = fri.clone();
         PrayerAdjust.shift(fm, new int[]{0, 20, 0, 0, 0});
         check("Friday: Dhuhr +20 is a plain 20 minutes later", fm[2] - fri[2] == 20 * 60_000L && hm(fm[2], "Asia/Riyadh").compareTo(hm(fri[2], "Asia/Riyadh")) > 0, hm(fri[2], "Asia/Riyadh") + " -> " + hm(fm[2], "Asia/Riyadh"));

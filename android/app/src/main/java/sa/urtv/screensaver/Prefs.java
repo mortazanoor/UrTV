@@ -69,7 +69,7 @@ final class Prefs {
 
     static final String[] MIN_RATINGS = {"0", "6", "6.5", "7", "7.5", "8"};
 
-    // minutes between background photos (sent to the page as #photos=; 30 is what it always did)
+    // minutes between background photos (sent to the page as #photos=; default is 15)
     static final String[] PHOTO_MINUTES = {"5", "10", "15", "30", "60"};
 
     // digits on the screen (sent to the page as #digits=; hindi is what it always showed)
@@ -313,7 +313,7 @@ final class Prefs {
     String countdownName() { return sp.getString("cdName", ""); }
     void setCountdown(String date, String name) { sp.edit().putString("cd", date).putString("cdName", name).apply(); }
 
-    String photoMinutes() { return sp.getString("photoMinutes", "30"); }
+    String photoMinutes() { return sp.getString("photoMinutes", "15"); }
     void setPhotoMinutes(String v) { sp.edit().putString("photoMinutes", v).apply(); }
 
     /** The slim bar before the adhan, on the screensaver and on the home screen (default on); sent to the page as #adhanbar=. */

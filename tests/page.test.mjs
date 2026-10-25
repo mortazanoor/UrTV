@@ -83,6 +83,46 @@ for (const file of ['urtv.html', 'tv.html']) {
   }
 }
 
+// ---- the daily photo pool has broad licensed categories, enough entries for a long rotation, and the configured 15-minute cadence
+{
+  const net = r => {
+    const u = new URL(r.request().url());
+    if (u.hostname !== 'api.openverse.org') return false;
+    const slug = u.searchParams.get('q').toLowerCase().replace(/[^a-z]+/g, '-');
+    const results = Array.from({length:12}, (_, i) => ({
+      id: `${slug}-${i}`, source:'wikimedia', license:'by', license_version:'4.0', width:3840, height:2160,
+      url:`https://upload.wikimedia.org/wikipedia/commons/a/a9/${slug}-${i}.jpg`,
+      foreign_landing_url:`https://commons.wikimedia.org/wiki/File:${slug}-${i}.jpg`,
+      license_url:'https://creativecommons.org/licenses/by/4.0/', title:`${slug} ${i}`, creator:'Test photographer'
+    }));
+    r.fulfill({json:{results}, headers:{'Access-Control-Allow-Origin':'*'}});
+    return true;
+  };
+  const {p,ctx,errors} = await open('tv.html','photos=15&teams=',{net});
+  await p.waitForFunction(() => REMOTE_BGS.length >= 100, null, {timeout:5000}).catch(() => {});
+  const r = await p.evaluate(() => ({n:REMOTE_BGS.length, unique:new Set(REMOTE_BGS.map(x=>x.f)).size,
+    order:photoSet(REMOTE_BGS.length), minutes:CONFIG.photoMinutes,
+    categories:DAILY_PHOTO_CATEGORIES.map(x=>x.k)}));
+  check('daily photos: at least 100 unique licensed photos across queried categories', r.n >= 100 && r.unique === r.n, JSON.stringify(r));
+  check('daily photos: a full permutation includes all photos on the 15-minute rotation', r.order.length === r.n && new Set(r.order).size === r.n && r.minutes === 15, JSON.stringify({n:r.n,minutes:r.minutes}));
+  check('daily photos: art, history, nature, cities, science, wildlife, and sports are queried',
+    ['art','history','nature','city','science','wildlife','sports'].every(k=>r.categories.includes(k)), r.categories.join(','));
+  check('daily photos: no page errors while loading and shuffling the full set', !errors.length, errors.join(';'));
+  await ctx.close();
+}
+
+// ---- Hijri dates from the Sistani office's expected 1448 crescent calendar, with the sighting caveat
+{
+  const {p,ctx,errors} = await open('tv.html','teams=&panel=prayers',{now:new Date('2026-10-25T12:00:00Z')});
+  const r = await p.evaluate(() => ({h:document.getElementById('hijri').textContent, title:document.getElementById('hijri').title,
+    parts:hijriParts(new Date()), month:hijriMonthNow()}));
+  check('Hijri: 25 October 2026 maps to 13 Jumada I 1448 in the office estimate',
+    r.parts.sistani && r.parts.year === 1448 && r.parts.month === 5 && r.parts.day === 13 && r.h.includes('جمادى الأولى'), JSON.stringify(r));
+  check('Hijri: viewers are told the month start depends on sighting', r.title.includes('تثبت برؤية الهلال'), r.title);
+  check('Hijri: Ramadan and occasion logic use the same calendar mapping', r.month === 5 && !errors.length, `${r.month} ${errors.join(';')}`);
+  await ctx.close();
+}
+
 // ---- every card beside the clock, with sample data where the card needs the network
 const SAMPLE = {
   forecast: () => { FORECAST = [0, 1, 2, 3, 4].map(i => ({ date: cityToday(Date.now() + i * 864e5), code: 2, hi: 37 - i, lo: 24 - i })); },
@@ -2868,7 +2908,7 @@ for (const panel of ['shows', 'prayers', 'forecast', 'hourly', 'prayerrow', 'mat
   }
 }
 
-// ---- Isha is Maghrib plus its delay, an absolute time: after midnight it reads 24:xx, not an hour that is already gone
+// ---- Ja'fari Isha follows the 14-degree angle; after midnight it remains an absolute 24:xx moment
 {
   const { p, ctx, errors } = await open('tv.html', 'city=Oslo&lat=59.91&lon=10.75&tz=Europe%2FOslo&teams=&panel=prayers', { now: new Date('2026-06-21T10:00:00Z') });
   const r = await p.evaluate(() => {
@@ -2877,7 +2917,7 @@ for (const panel of ['shows', 'prayers', 'forecast', 'hourly', 'prayerrow', 'mat
     return { t, gap: (ih * 60 + im) - (mh * 60 + mm), rows: [...document.querySelectorAll('#week-list li')].map(li => li.textContent.replace(/\s+/g, ' ').trim()),
              f: [fmt12(24, 14), fmt12(12, 0), fmt12(0, 5), fmt12(23, 59)] };
   });
-  check('computePrayers: Isha is 90 minutes after Maghrib even past midnight (Oslo, midsummer)', r.gap === 90 && +r.t.Isha.slice(0, 2) >= 24, JSON.stringify(r.t));
+  check('computePrayers: Ja\'fari Isha follows Maghrib and stays after midnight (Oslo, midsummer)', r.gap > 0 && +r.t.Isha.slice(0, 2) >= 24, JSON.stringify(r.t));
   check('prayer times card: an Isha after midnight reads ١٢:١٤ ص', r.rows[5] && r.rows[5].includes('ص') && r.rows[5].startsWith('العشاء'), r.rows.join(' | '));
   check('fmt12: 24:14 is 12:14 ص, noon م, 0:05 ص, 23:59 م', r.f.join() === '١٢:١٤ ص,١٢:٠٠ م,١٢:٠٥ ص,١١:٥٩ م', r.f.join());
   check('computePrayers: no script errors', !errors.length, errors.join('; '));

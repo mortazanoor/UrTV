@@ -40,9 +40,9 @@ final class Place {
     }
 
     private static Place bundled(Context c) {
-        return new Place(number(c.getString(R.string.latitude), 24.6877),
-                number(c.getString(R.string.longitude), 46.7219),
-                orDefault(c.getString(R.string.timezone), "Asia/Riyadh"), new int[PrayerAdjust.COUNT]);
+        return new Place(number(c.getString(R.string.latitude), 31.9929),
+                number(c.getString(R.string.longitude), 44.9255),
+                orDefault(c.getString(R.string.timezone), "Asia/Baghdad"), new int[PrayerAdjust.COUNT]);
     }
 
     /** "city=..&lat=24.7&lon=46.7&tz=Asia%2FRiyadh&..." — the same fragment the page reads. */
@@ -58,7 +58,7 @@ final class Place {
                 else if ("tz".equals(key)) tz = value;
             }
             if (lat == null || lon == null) return null;
-            return new Place(number(lat, 24.6877), number(lon, 46.7219), orDefault(tz, "Asia/Riyadh"), PrayerAdjust.fromFragment(fragment));
+            return new Place(number(lat, 31.9929), number(lon, 44.9255), orDefault(tz, "Asia/Baghdad"), PrayerAdjust.fromFragment(fragment));
         } catch (Exception e) {
             return null;
         }

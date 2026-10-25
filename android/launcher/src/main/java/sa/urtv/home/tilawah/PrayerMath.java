@@ -19,8 +19,6 @@ final class PrayerMath {
 
     private PrayerMath() {}
 
-    /** Isha comes this long after Maghrib (Umm al-Qura): 90 minutes, 120 in Ramadan. */
-    static long ishaDelayMillis(boolean ramadan) { return (ramadan ? 120 : 90) * 60_000L; }
 
     /** Local midnight of that day in that zone. */
     static long midnight(int y, int mo, int d, String tz) {
@@ -31,11 +29,10 @@ final class PrayerMath {
     }
 
     /**
-     * The six times of that local day (Fajr, sunrise, Dhuhr, Asr, Maghrib, Isha) as moments. Isha is an absolute
-     * time, Maghrib plus its delay: at a high latitude, where Maghrib is late, it falls after midnight, on the next
-     * day, instead of wrapping back to an hour of this day that has already gone.
+     * The six Ja'fari times of that local day (Fajr, sunrise, Dhuhr, Asr, Maghrib, Isha) as moments. Isha is an
+     * absolute time and, at high latitudes, can fall on the following day.
      */
-    static long[] compute(int y, int mo, int d, double lat, double lng, String tz, boolean ramadan) {
+    static long[] compute(int y, int mo, int d, double lat, double lng, String tz) {
         TimeZone zone = TimeZone.getTimeZone(tz);
         long day0 = midnight(y, mo, d, tz);
         Calendar utc = Calendar.getInstance(TimeZone.getTimeZone("UTC"), Locale.US);
@@ -44,11 +41,12 @@ final class PrayerMath {
         double jd0 = utc.getTimeInMillis() / 86400000.0 + 2440587.5 - lng / 360.0;
         double tzHours = zone.getOffset(day0 + 12 * 3600_000L) / 3600000.0;
 
-        double fajr = adj(angleTime(jd0, lat, 18.5, 5, true), tzHours, lng);
+        double fajr = adj(angleTime(jd0, lat, 16, 5, true), tzHours, lng);
         double sunrise = adj(angleTime(jd0, lat, .833, 6, true), tzHours, lng);
         double dhuhr = adj(noon(jd0, 12), tzHours, lng);
         double asr = adj(asrTime(jd0, lat, 13), tzHours, lng);
-        double maghrib = adj(angleTime(jd0, lat, .833, 18, false), tzHours, lng);
+        double maghrib = adj(angleTime(jd0, lat, 4, 18, false), tzHours, lng);
+        double isha = adj(angleTime(jd0, lat, 14, 21, false), tzHours, lng);
 
         long[] at = new long[6];
         at[FAJR] = day0 + minutesOfDay(fajr) * 60_000L;
@@ -56,13 +54,14 @@ final class PrayerMath {
         at[DHUHR] = day0 + minutesOfDay(dhuhr) * 60_000L;
         at[ASR] = day0 + minutesOfDay(asr) * 60_000L;
         at[MAGHRIB] = day0 + minutesOfDay(maghrib) * 60_000L;
-        at[ISHA] = at[MAGHRIB] + ishaDelayMillis(ramadan);
+        at[ISHA] = day0 + Math.round(isha * 60) * 60_000L;
+        if (at[ISHA] <= at[MAGHRIB]) at[ISHA] += 24 * 60 * 60_000L;
         return at;
     }
 
     /** The preference key of the day's times: the date in the city's zone and the city itself, so a new city refetches. */
     static String key(long millis, double lat, double lng, String tz) {
-        return "times_" + format("yyyyMMdd", millis, tz) + "_" + String.format(Locale.US, "%.3f_%.3f", lat, lng) + "_" + tz;
+        return "times_" + format("yyyyMMdd", millis, tz) + "_" + String.format(Locale.US, "%.3f_%.3f", lat, lng) + "_" + tz + "_jafari0";
     }
 
     /** The date Aladhan is asked for: the city's own day, not the TV's. */
