@@ -50,10 +50,10 @@ final class PrayerTimes {
         local.setTimeInMillis(when.getTimeInMillis());
         long day0 = PrayerMath.midnight(local.get(Calendar.YEAR), local.get(Calendar.MONTH) + 1,
                 local.get(Calendar.DAY_OF_MONTH), place.tz);
-        return of(local, place);
+        return computed(local, place);
     }
 
-    private static PrayerTimes of(Calendar local, Place place) {
+    private static PrayerTimes computed(Calendar local, Place place) {
         long[] times = PrayerMath.compute(local.get(Calendar.YEAR), local.get(Calendar.MONTH) + 1,
                 local.get(Calendar.DAY_OF_MONTH), place.lat, place.lng, place.tz);
         PrayerTimes t = new PrayerTimes();
@@ -89,7 +89,7 @@ final class PrayerTimes {
         String key = key(day, place);
         String copyKey = key + "|" + PrayerAdjust.text(place.adj);   // a change of the adjustments is a different day's copy
         if (todayCopy != null && copyKey.equals(todayKey)) return todayCopy;
-        PrayerTimes t = of(day, place);
+        PrayerTimes t = computed(day, place);
         String saved = prefs(c).getString(key, null);
         if (saved != null) t.apply(saved);   // Aladhan's, when they came; a bad copy is ignored
         todayCopy = t;
@@ -108,7 +108,7 @@ final class PrayerTimes {
         Place place = Place.get(c);
         Calendar day = Calendar.getInstance(TimeZone.getTimeZone(place.tz), Locale.US);
         for (int d = 0; d < 3; d++) {
-            PrayerTimes t = d == 0 ? today(c) : of(day, place);
+            PrayerTimes t = d == 0 ? today(c) : computed(day, place);
             for (int i : PRAYERS) {
                 if (t.at[i] > now + 30_000) return new Next(i, t.at[i], t.clock[i]);
             }
